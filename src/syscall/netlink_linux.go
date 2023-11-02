@@ -7,6 +7,7 @@
 package syscall
 
 import (
+	"runtime"
 	"sync"
 	"unsafe"
 )
@@ -65,7 +66,10 @@ func NetlinkRIB(proto, family int) ([]byte, error) {
 	defer Close(s)
 	sa := &SockaddrNetlink{Family: AF_NETLINK}
 	if err := Bind(s, sa); err != nil {
-		return nil, err
+		// Bind operation of Netlink socket is prohibited in Android11 and later versions
+		if !(runtime.GOOS == "android" && (err == EACCES || err == EPERM)) {
+			return nil, err
+		}
 	}
 	wb := newNetlinkRouteRequest(proto, 1, family)
 	if err := Sendto(s, wb, 0, sa); err != nil {

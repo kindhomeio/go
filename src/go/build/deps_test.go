@@ -171,7 +171,7 @@ var depsRules = `
 	io/fs
 	< embed;
 
-	unicode, fmt !< net, os, os/signal;
+	unicode, fmt !< os, os/signal;
 
 	os/signal, internal/safefilepath, STR
 	< path/filepath
@@ -374,6 +374,7 @@ var depsRules = `
 	# so large dependencies must be kept out.
 	# This is a long-looking list but most of these
 	# are small with few dependencies.
+    bytes,
 	CGO,
 	golang.org/x/net/dns/dnsmessage,
 	golang.org/x/net/lif,
@@ -387,7 +388,7 @@ var depsRules = `
 	os
 	< net;
 
-	fmt, unicode !< net;
+	fmt !< net;
 	math/rand !< net; # net uses runtime instead
 
 	# NET is net plus net-helper packages.
