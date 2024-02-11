@@ -284,18 +284,17 @@ var optabBase = []Optab{
 	{as: ASYSCALL, type_: 5, size: 4},
 	{as: ASYSCALL, a1: C_REG, type_: 77, size: 12},
 	{as: ASYSCALL, a1: C_SCON, type_: 77, size: 12},
-	{as: ABEQ, a6: C_SBRA, type_: 16, size: 4},
-	{as: ABEQ, a1: C_CREG, a6: C_SBRA, type_: 16, size: 4},
-	{as: ABR, a6: C_LBRA, type_: 11, size: 4},                                    // b label
-	{as: ABR, a6: C_LBRAPIC, type_: 11, size: 8},                                 // b label; nop
+	{as: ABEQ, a6: C_BRA, type_: 16, size: 4},
+	{as: ABEQ, a1: C_CREG, a6: C_BRA, type_: 16, size: 4},
+	{as: ABR, a6: C_BRA, type_: 11, size: 4},                                     // b label
+	{as: ABR, a6: C_BRAPIC, type_: 11, size: 8},                                  // b label; nop
 	{as: ABR, a6: C_LR, type_: 18, size: 4},                                      // blr
 	{as: ABR, a6: C_CTR, type_: 18, size: 4},                                     // bctr
-	{as: ABC, a1: C_SCON, a2: C_CRBIT, a6: C_SBRA, type_: 16, size: 4},           // bc bo, bi, label
-	{as: ABC, a1: C_SCON, a2: C_CRBIT, a6: C_LBRA, type_: 17, size: 4},           // bc bo, bi, label
+	{as: ABC, a1: C_SCON, a2: C_CRBIT, a6: C_BRA, type_: 16, size: 4},            // bc bo, bi, label
 	{as: ABC, a1: C_SCON, a2: C_CRBIT, a6: C_LR, type_: 18, size: 4},             // bclr bo, bi
 	{as: ABC, a1: C_SCON, a2: C_CRBIT, a3: C_SCON, a6: C_LR, type_: 18, size: 4}, // bclr bo, bi, bh
 	{as: ABC, a1: C_SCON, a2: C_CRBIT, a6: C_CTR, type_: 18, size: 4},            // bcctr bo, bi
-	{as: ABDNZ, a6: C_SBRA, type_: 16, size: 4},
+	{as: ABDNZ, a6: C_BRA, type_: 16, size: 4},
 	{as: ASYNC, type_: 46, size: 4},
 	{as: AWORD, a1: C_LCON, type_: 40, size: 4},
 	{as: ADWORD, a1: C_64CON, type_: 31, size: 8},
@@ -515,9 +514,9 @@ var optabBase = []Optab{
 	{as: obj.ANOP, a1: C_LCON, type_: 0, size: 0}, // NOP operand variations added for #40689
 	{as: obj.ANOP, a1: C_REG, type_: 0, size: 0},  // to preserve previous behavior
 	{as: obj.ANOP, a1: C_FREG, type_: 0, size: 0},
-	{as: obj.ADUFFZERO, a6: C_LBRA, type_: 11, size: 4}, // same as ABR/ABL
-	{as: obj.ADUFFCOPY, a6: C_LBRA, type_: 11, size: 4}, // same as ABR/ABL
-	{as: obj.APCALIGN, a1: C_LCON, type_: 0, size: 0},   // align code
+	{as: obj.ADUFFZERO, a6: C_BRA, type_: 11, size: 4}, // same as ABR/ABL
+	{as: obj.ADUFFCOPY, a6: C_BRA, type_: 11, size: 4}, // same as ABR/ABL
+	{as: obj.APCALIGN, a1: C_LCON, type_: 0, size: 0},  // align code
 }
 
 // These are opcodes above which may generate different sequences depending on whether prefix opcode support
@@ -1017,7 +1016,7 @@ func (c *ctxt9) aclass(a *obj.Addr) int {
 			case sbits <= 16:
 				return C_U16CON
 			case sbits <= 31:
-				return C_U32CON
+				return C_U31CON
 			case sbits <= 32:
 				return C_U32CON
 			case sbits <= 33:
@@ -1041,9 +1040,9 @@ func (c *ctxt9) aclass(a *obj.Addr) int {
 
 	case obj.TYPE_BRANCH:
 		if a.Sym != nil && c.ctxt.Flag_dynlink && !pfxEnabled {
-			return C_LBRAPIC
+			return C_BRAPIC
 		}
-		return C_SBRA
+		return C_BRA
 	}
 
 	return C_GOK
@@ -1145,13 +1144,20 @@ func cmp(a int, b int) bool {
 		return cmp(C_U5CON, b)
 	case C_U15CON:
 		return cmp(C_U8CON, b)
-	case C_U16CON:
-		return cmp(C_U15CON, b)
-
 	case C_S16CON:
 		return cmp(C_U15CON, b)
-	case C_32CON:
+	case C_U16CON:
+		return cmp(C_U15CON, b)
+	case C_16CON:
 		return cmp(C_S16CON, b) || cmp(C_U16CON, b)
+	case C_U31CON:
+		return cmp(C_U16CON, b)
+	case C_U32CON:
+		return cmp(C_U31CON, b)
+	case C_S32CON:
+		return cmp(C_U31CON, b) || cmp(C_S16CON, b)
+	case C_32CON:
+		return cmp(C_S32CON, b) || cmp(C_U32CON, b)
 	case C_S34CON:
 		return cmp(C_32CON, b)
 	case C_64CON:
@@ -1159,9 +1165,6 @@ func cmp(a int, b int) bool {
 
 	case C_LACON:
 		return cmp(C_SACON, b)
-
-	case C_LBRA:
-		return cmp(C_SBRA, b)
 
 	case C_SOREG:
 		return cmp(C_ZOREG, b)
@@ -2654,7 +2657,7 @@ func asmout(c *ctxt9, p *obj.Prog, o *Optab, out *[5]uint32) {
 		}
 		o1 = AOP_RRR(c.oprrr(p.As), uint32(p.To.Reg), uint32(p.From.Reg), uint32(r))
 
-	case 11: /* br/bl lbra */
+	case 11: /* br/bl bra */
 		v := int32(0)
 
 		if p.To.Target() != nil {
@@ -2776,8 +2779,7 @@ func asmout(c *ctxt9, p *obj.Prog, o *Optab, out *[5]uint32) {
 			c.ctxt.Diag("unexpected op in rldc case\n%v", p)
 		}
 
-	case 17, /* bc bo,bi,lbra (same for now) */
-		16: /* bc bo,bi,sbra */
+	case 16: /* bc bo,bi,bra */
 		a := 0
 
 		r := int(p.Reg)
